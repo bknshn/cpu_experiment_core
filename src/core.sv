@@ -31,6 +31,16 @@ module core (
   localparam FUN_SLL = 6'b000000;
   localparam FUN_SLT = 6'b101010;
   localparam FUN_JALR= 6'b001001;
+
+  localparam OP_FPU = 6'b010001;
+  localparam FPU_OP_SPECIAL = 2'b10;
+        
+  localparam FPU_ADD  = 6'b000000;
+  localparam FPU_SUB  = 6'b000001;
+  localparam FPU_MUL  = 6'b000010;
+  localparam FPU_DIV  = 6'b000011;
+  localparam FPU_MOV  = 6'b000110;
+
   localparam REG_LEN = 32;
   logic [31:0] pc=32'b0;
   logic [1:0] status = 2'b0;
@@ -38,6 +48,7 @@ module core (
   localparam RUN  = 2'b01;
   //%r30がスタックポインタ0x0 %r31がフレームポインタ0x40000
   logic [31:0] reg_data [31:0];
+  logic [31:0] freg_data [31:0];
   integer i;
   initial begin
     for(i=1;i<30;i=i+1)
@@ -74,6 +85,34 @@ module core (
     end else   count <= count+1;
   end
 
+  logic[31:0] fadd_fsub_out;
+  fadd_fsub fadd_fsub(
+    .s_axis_a_tvalid(1'b1),
+    .s_axis_a_tdata(freg_data[inst[15:11]]),
+    .s_axis_b_tvalid(1'b1),
+    .s_axis_b_tdata(freg_data[inst[20:16]]),
+    .s_axis_operation_tvalid(1'b1),
+    .s_axis_operation_tdata({7'b0000000, inst[0]}),
+    .m_axis_result_tdata(fadd_fsub_out)
+  );
+  logic[31:0] fmul_out;
+  fmul fmul(
+    .s_axis_a_tvalid(1'b1),
+    .s_axis_a_tdata(freg_data[inst[15:11]]),
+    .s_axis_b_tvalid(1'b1),
+    .s_axis_b_tdata(freg_data[inst[20:16]]),
+    .m_axis_result_tdata(fmul_out)
+  );
+  logic[31:0] fdiv_out;
+  fdiv fdiv(
+    .aclk(CLK),
+    .s_axis_a_tvalid(1'b1),
+    .s_axis_a_tdata(freg_data[inst[15:11]]),
+    .s_axis_b_tvalid(1'b1),
+    .s_axis_b_tdata(freg_data[inst[20:16]]),
+    .m_axis_result_tdata(fdiv_out)
+  );
+
   assign inst = mem_inst[pc];
 
   always @(posedge CLK) begin
@@ -94,6 +133,17 @@ module core (
             FUN_SLL: reg_data[inst[15:11]]<=reg_data[inst[20:16]]<<inst[10:6];
             FUN_SLT: reg_data[inst[15:11]]<=(reg_data[inst[25:21]]<=reg_data[inst[20:16]]);
             FUN_JALR:reg_data[31] <=pc+1;
+          endcase
+        OP_FPU:
+          case (inst[25:24])
+            FPU_OP_SPECIAL:
+              case (inst[5:0])
+                FPU_ADD : freg_data[inst[10:6]] <= fadd_fsub_out;
+                FPU_SUB : freg_data[inst[10:6]] <= fadd_fsub_out;
+                FPU_MUL : freg_data[inst[10:6]] <= fmul_out;
+                FPU_DIV : freg_data[inst[10:6]] <= fdiv_out; // !!!遅延あり？
+                FPU_MOV : freg_data[inst[10:6]] <= freg_data[inst[20:16]];
+              endcase
           endcase
 
         OP_ADDI:begin reg_data[inst[20:16]]<=reg_data[inst[25:21]]+{{16{inst[15]}},inst[15:0]}; end
