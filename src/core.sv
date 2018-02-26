@@ -62,9 +62,10 @@ module core (
   // 右側からよみこまれる
   //logic [31:0] mem_inst [47:0] = {32'h03e00008 ,32'h00410820 ,32'h8fc20004 ,32'h8fdf000c ,32'h23defff0 ,32'h0c000012 ,32'h23de0010 ,32'hafdf000c ,32'h20410000 ,32'hafc10004 ,32'h00621022 ,32'h8fc30000 ,32'h20020002 ,32'h8fdf0004 ,32'h23defff8 ,32'h0c000012 ,32'h23de0008 ,32'hafdf0004 ,32'h20410000 ,32'hafc10000 ,32'h00221022 ,32'h20020001 ,32'h03e00008 ,32'h20010001 ,32'h14220003 ,32'h20020001 ,32'h03e00008 ,32'h20010001 ,32'h14220003 ,32'h20020000 ,32'h68010000 ,32'h8fdf0004 ,32'h23defff8 ,32'h6c010000 ,32'h00010a02 ,32'h6c010000 ,32'h00010a02 ,32'h6c010000 ,32'h00010a02 ,32'h6c010000 ,32'h23de0008 ,32'hafdf0004 ,32'h8fdf0004 ,32'h23defff8 ,32'h0c000012 ,32'h23de0008 ,32'hafdf0004 ,32'h20010014 };
   logic [31:0] mem_inst [43:0];
-  fib3 fib3(mem_inst);
+  logic [31:0] mem_inst [499:0];
+  
+  fib3 fib3(mem_inst,mem_data);
   //logic [31:0] mem_inst [2:0] = {32'hFFFFFFFF ,32'h6C010000 ,32'h20010003 };
-  logic [31:0] mem_data [499:0];
   //add,addi,sub,srl,beq,bne,jal,jr,lw,sw,in,outが必要 
   //and,andi,or,ori,nor,sll
   //$fread(file, inst, 0, 16); 
