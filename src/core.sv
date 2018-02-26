@@ -4,7 +4,21 @@ module core (
   input logic SW_E,
   output logic [7:0] LED
 );
-  localparam OP_ZERO = 6'b0;
+  // inst[31:26]
+  localparam OP_ZERO = 6'b00000;
+    // inst[5:0]
+    localparam FUN_ADD = 6'b100000;
+    localparam FUN_SUB = 6'b100010;
+    localparam FUN_SRL = 6'b000010;
+    localparam FUN_JR  = 6'b001000;
+
+    localparam FUN_AND = 6'b100100;
+    localparam FUN_OR  = 6'b100101;
+    localparam FUN_NOR = 6'b100111;
+    localparam FUN_SLL = 6'b000000;
+    localparam FUN_SLT = 6'b101010;
+    localparam FUN_JALR= 6'b001001;
+
   localparam OP_ADDI = 6'b001000;
   localparam OP_BEQ =  6'b000100;
   localparam OP_BNE =  6'b000101;
@@ -20,57 +34,50 @@ module core (
   localparam OP_SLTI=  6'b001010;
   localparam OP_LUI=   6'b001111;
 
-  localparam FUN_ADD = 6'b100000;
-  localparam FUN_SUB = 6'b100010;
-  localparam FUN_SRL = 6'b000010;
-  localparam FUN_JR  = 6'b001000;
-
-  localparam FUN_AND = 6'b100100;
-  localparam FUN_OR  = 6'b100101;
-  localparam FUN_NOR = 6'b100111;
-  localparam FUN_SLL = 6'b000000;
-  localparam FUN_SLT = 6'b101010;
-  localparam FUN_JALR= 6'b001001;
-
   localparam OP_FPU = 6'b010001;
-  localparam FPU_OP_SPECIAL = 2'b10;
+    // inst[25:24]
+    localparam FPU_OP_SPECIAL = 2'b10;
+      // inst[5:0]
+      localparam FPU_ADD  = 6'b000000;
+      localparam FPU_SUB  = 6'b000001;
+      localparam FPU_MUL  = 6'b000010;
+      localparam FPU_DIV  = 6'b000011;
+      localparam FPU_MOV  = 6'b000110;
         
-  localparam FPU_ADD  = 6'b000000;
-  localparam FPU_SUB  = 6'b000001;
-  localparam FPU_MUL  = 6'b000010;
-  localparam FPU_DIV  = 6'b000011;
-  localparam FPU_MOV  = 6'b000110;
-
-  localparam REG_LEN = 32;
   logic [31:0] pc=32'b0;
   logic [1:0] status = 2'b0;
   localparam INIT = 2'b00;
   localparam RUN  = 2'b01;
+
+  // レジスタ
   //%r30がスタックポインタ0x0 %r31がフレームポインタ0x40000
   logic [31:0] reg_data [31:0];
   logic [31:0] reg_data_const [31:0];
+  logic [31:0] freg_data [31:0];
   test test(reg_data_const);
   initial reg_data = reg_data_const;
-  logic [31:0] freg_data [31:0];
 
-  //fib,fib3は44命令 mandelbrotは125命令 minrtは9366命令
-  logic [31:0] mem_inst       [199:0];
+  // 命令メモリ
+  logic [31:0] mem_inst [199:0];
   logic [31:0] mem_inst_const [199:0];
-  logic [31:0] mem_data       [9999:0];
+
+  // 現在の命令
+  logic[31:0] inst;
+  assign inst = mem_inst[pc];
+
+  // データメモリ
+  logic [31:0] mem_data [9999:0];
   logic [31:0] mem_data_const [9999:0];
+  //fib,fib3は44命令 mandelbrotは125命令 minrtは9366命令
 
   
-  fib3 fib3(mem_inst_const,mem_data_const);
-  //mandelbrot mandelbrot(mem_inst_const,);
+  //mandelbrot mandelbrot(mem_inst_const,mem_data_const);
+  /*fib3 fib3(mem_inst_const,mem_data_const);
   initial begin 
     mem_inst=mem_inst_const;
     mem_data=mem_data_const;
-  end
-
-  //add,addi,sub,srl,beq,bne,jal,jr,lw,sw,in,outが必要 
-  //and,andi,or,ori,nor,sll
-  //$fread(file, inst, 0, 16); 
-  logic[31:0] inst;
+  end*/
+  initial mem_inst[43:0] = {32'hffffffff ,32'h03e00008 ,32'h6c010000 ,32'h03e00008 ,32'h00410820 ,32'h8fc20001 ,32'h8fdf0002 ,32'h23defffd ,32'h0c00000d ,32'h23de0003 ,32'hafdf0002 ,32'h20410000 ,32'hafc10001 ,32'h2042fffe ,32'h8fc20000 ,32'h8fdf0001 ,32'h23defffe ,32'h0c00000d ,32'h23de0002 ,32'hafdf0001 ,32'h20410000 ,32'hafc10000 ,32'h2022ffff ,32'h03e00008 ,32'h20010001 ,32'h143a0003 ,32'h201a0001 ,32'h03e00008 ,32'h20010001 ,32'h143a0003 ,32'h201a0000 ,32'h08000000 ,32'h68010000 ,32'h8fdf0001 ,32'h23defffe ,32'h0c000029 ,32'h23de0002 ,32'hafdf0001 ,32'h8fdf0001 ,32'h23defffe ,32'h0c00000d ,32'h23de0002 ,32'hafdf0001 ,32'h20010003 };
 
   int count =0;
   logic flg=0;
@@ -78,15 +85,15 @@ module core (
   logic [31:0]TMP_L1 =32'b0;
   logic [31:0]TMP_L2 =32'b0;
 
-  //logic [2:0] TMP_L =3'b0;
-  //logic [2:0] TMP_R =3'b0;
+  // 遅いクロックの生成
   always @(posedge CLK ) begin
-    if (count >= 200000000) begin
+    if (count >= 80000000) begin
       count <= 0;
       CLK2<=~CLK2;
     end else   count <= count+1;
   end
 
+  // FPUのIPコアの接続
   logic[31:0] fadd_fsub_out;
   fadd_fsub fadd_fsub(
     .s_axis_a_tvalid(1'b1),
@@ -106,21 +113,20 @@ module core (
     .m_axis_result_tdata(fmul_out)
   );
   logic[31:0] fdiv_out;
+  logic fdiv_valid = 0;
   fdiv fdiv(
     .aclk(CLK),
     .s_axis_a_tvalid(1'b1),
     .s_axis_a_tdata(freg_data[inst[15:11]]),
     .s_axis_b_tvalid(1'b1),
     .s_axis_b_tdata(freg_data[inst[20:16]]),
+    .m_axis_result_tvalid(fdiv_valid),
     .m_axis_result_tdata(fdiv_out)
   );
-
-  assign inst = mem_inst[pc];
 
   always @(posedge CLK) begin
     if (SW_W && status == INIT) begin 
       status <= RUN;
-        //TMP_L<=3'b111;
     end
     else if (status == RUN) begin
       case(inst[31:26])
@@ -148,7 +154,7 @@ module core (
               endcase
           endcase
 
-        OP_ADDI:begin reg_data[inst[20:16]]<=reg_data[inst[25:21]]+{{16{inst[15]}},inst[15:0]}; end
+        OP_ADDI:reg_data[inst[20:16]]<=reg_data[inst[25:21]]+{{16{inst[15]}},inst[15:0]};
         OP_JAL: reg_data[31] <=pc+1;
         OP_LW:  reg_data[inst[20:16]]<=mem_data[reg_data[inst[25:21]]+inst[15:0]];//data_mem_
         OP_SW:  mem_data[reg_data[inst[25:21]]+inst[15:0]]<=reg_data[inst[20:16]];//mem_data[inst[25:21]+inst[15:0]]
@@ -158,23 +164,23 @@ module core (
         OP_LUI: reg_data[inst[20:16]]<=inst[15:0]<<16;
       endcase       
 
+      // PCの操作
       if ( (inst[31:26]==OP_BEQ &&(reg_data[inst[25:21]] == reg_data[inst[20:16]] ) )||
            (inst[31:26]==OP_BNE &&(reg_data[inst[25:21]] != reg_data[inst[20:16]] ) ) )
         pc <= pc+$signed(inst[15:0]);
       else if (inst[31:26]==OP_JAL) pc <= inst[25:0];
       else if ( (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JR)  ||
                 (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JALR) ) pc<=reg_data[inst[25:21]];
-      else if (inst[31:26]==OP_IN ) begin pc<=pc+1;end
-      else if (inst[31:26]==OP_OUT ) begin pc<=pc+1;end
       else if (inst[31:26]==OP_J   ) begin pc<=inst[25:0];status<=INIT; end
-
-    else
-      pc <=pc+1;
-      TMP_L1  <= mem_inst[1];   
-      TMP_L2  <= reg_data[1];   
-      //TMP_L  = TMP_L1[2:0];   
-      //TMP_R  = TMP_L1[2:0];
+      else begin // PCを1増やす系
+        if (inst[31:26]==OP_FPU && inst[5:0]==FPU_DIV) begin
+          if (fdiv_valid) pc <= pc+1;
+        end else pc <=pc+1;
+      end
     end
+
+    TMP_L1  <= mem_inst[1];   
+    TMP_L2  <= reg_data[1];   
   end
 
   assign LED[7]  =CLK2;
