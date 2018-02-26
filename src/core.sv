@@ -165,7 +165,11 @@ module core (
       else if ( (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JR)  ||
                 (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JALR) ) pc<=reg_data[inst[25:21]];
       else if (inst[31:26]==OP_J   ) begin pc<=inst[25:0];status<=INIT; end
-      else pc <=pc+1;
+      else begin // PCを1増やす系
+        if (inst[31:26]==OP_FPU && inst[5:0]==FPU_DIV) begin
+          if (fdiv_valid) pc <= pc+1;
+        end else pc <=pc+1;
+      end
     end
 
     TMP_L1  <= mem_inst[1];   
