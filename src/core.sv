@@ -48,24 +48,25 @@ module core (
   localparam RUN  = 2'b01;
   //%r30がスタックポインタ0x0 %r31がフレームポインタ0x40000
   logic [31:0] reg_data [31:0];
+  logic [31:0] reg_data_const [31:0];
+  test test(reg_data_const);
+  initial reg_data = reg_data_const;
   logic [31:0] freg_data [31:0];
-  integer i;
-  initial begin
-    for(i=1;i<30;i=i+1)
-      reg_data[i]=32'b0;
-    // ここにメモリの初期化（mem[12'h001]=16'h1234;など）を書く．
-    reg_data[0]=32'b0;
-    reg_data[30]=32'b0;
-    reg_data[31]=32'h00000040;
-  end
-      //= {32'h00040, 32'h0,{29{32'bx}},32'b0};
-  // 右側からよみこまれる
-  //logic [31:0] mem_inst [47:0] = {32'h03e00008 ,32'h00410820 ,32'h8fc20004 ,32'h8fdf000c ,32'h23defff0 ,32'h0c000012 ,32'h23de0010 ,32'hafdf000c ,32'h20410000 ,32'hafc10004 ,32'h00621022 ,32'h8fc30000 ,32'h20020002 ,32'h8fdf0004 ,32'h23defff8 ,32'h0c000012 ,32'h23de0008 ,32'hafdf0004 ,32'h20410000 ,32'hafc10000 ,32'h00221022 ,32'h20020001 ,32'h03e00008 ,32'h20010001 ,32'h14220003 ,32'h20020001 ,32'h03e00008 ,32'h20010001 ,32'h14220003 ,32'h20020000 ,32'h68010000 ,32'h8fdf0004 ,32'h23defff8 ,32'h6c010000 ,32'h00010a02 ,32'h6c010000 ,32'h00010a02 ,32'h6c010000 ,32'h00010a02 ,32'h6c010000 ,32'h23de0008 ,32'hafdf0004 ,32'h8fdf0004 ,32'h23defff8 ,32'h0c000012 ,32'h23de0008 ,32'hafdf0004 ,32'h20010014 };
-  logic [31:0] mem_inst [43:0];
-  logic [31:0] mem_inst [499:0];
+
+  //fib,fib3は44命令 mandelbrotは125命令 minrtは9366命令
+  logic [31:0] mem_inst       [199:0];
+  logic [31:0] mem_inst_const [199:0];
+  logic [31:0] mem_data       [9999:0];
+  logic [31:0] mem_data_const [9999:0];
+
   
-  fib3 fib3(mem_inst,mem_data);
-  //logic [31:0] mem_inst [2:0] = {32'hFFFFFFFF ,32'h6C010000 ,32'h20010003 };
+  fib3 fib3(mem_inst_const,mem_data_const);
+  //mandelbrot mandelbrot(mem_inst_const,);
+  initial begin 
+    mem_inst=mem_inst_const;
+    mem_data=mem_data_const;
+  end
+
   //add,addi,sub,srl,beq,bne,jal,jr,lw,sw,in,outが必要 
   //and,andi,or,ori,nor,sll
   //$fread(file, inst, 0, 16); 
