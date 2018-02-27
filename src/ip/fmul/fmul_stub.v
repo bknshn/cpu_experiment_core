@@ -1,9 +1,10 @@
 // Copyright 1986-2016 Xilinx, Inc. All Rights Reserved.
 // --------------------------------------------------------------------------------
 // Tool Version: Vivado v.2016.4 (lin64) Build 1756540 Mon Jan 23 19:11:19 MST 2017
-// Date        : Sat Feb 24 23:48:44 2018
+// Date        : Sat Feb 24 23:48:43 2018
 // Host        : ispc2016 running 64-bit Ubuntu 14.04.5 LTS
-// Command     : write_verilog -force -mode synth_stub /home/tansei/is/cpu/cpu_experiment_core/src/ip/fmul/fmul_stub.v
+// Command     : write_verilog -force -mode synth_stub -rename_top fmul -prefix
+//               fmul_ fmul_stub.v
 // Design      : fmul
 // Purpose     : Stub declaration of top-level module interface
 // Device      : xcku040-ffva1156-2-e
