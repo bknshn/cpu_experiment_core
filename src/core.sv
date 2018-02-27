@@ -1,5 +1,7 @@
-module core (
-  input logic CLK,
+module core #(
+parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbrot_data.bin"
+) 
+  (input logic CLK,
   input logic SW_W,
   input logic SW_E,
   output logic [7:0] LED
@@ -59,25 +61,36 @@ module core (
 
   // 命令メモリ
   logic [31:0] mem_inst [199:0];
-  logic [31:0] mem_inst_const [199:0];
+   //fib3 fib3(mem_inst);
+   //fib fib(mem_inst);   
+   mandelbrot mandelbrot(mem_inst);
+  //minrt minrt(mem_inst);
 
   // 現在の命令
   logic[31:0] inst;
   assign inst = mem_inst[pc];
 
   // データメモリ
-  logic [31:0] mem_data [9999:0];
-  logic [31:0] mem_data_const [9999:0];
+  parameter MAX_MEM =200;
+  logic [31:0] mem_data [MAX_MEM-1:0];
   //fib,fib3は44命令 mandelbrotは125命令 minrtは9366命令
 
-  
-  //mandelbrot mandelbrot(mem_inst_const,mem_data_const);
-  /*initial begin 
-    fib3 fib3(mem_inst_const,mem_data_const);
-    mem_inst=mem_inst_const;
-    mem_data=mem_data_const;
-  end*/
-  initial mem_inst[43:0] = {32'hffffffff ,32'h03e00008 ,32'h6c010000 ,32'h03e00008 ,32'h00410820 ,32'h8fc20001 ,32'h8fdf0002 ,32'h23defffd ,32'h0c00000d ,32'h23de0003 ,32'hafdf0002 ,32'h20410000 ,32'hafc10001 ,32'h2042fffe ,32'h8fc20000 ,32'h8fdf0001 ,32'h23defffe ,32'h0c00000d ,32'h23de0002 ,32'hafdf0001 ,32'h20410000 ,32'hafc10000 ,32'h2022ffff ,32'h03e00008 ,32'h20010001 ,32'h143a0003 ,32'h201a0001 ,32'h03e00008 ,32'h20010001 ,32'h143a0003 ,32'h201a0000 ,32'h08000000 ,32'h68010000 ,32'h8fdf0001 ,32'h23defffe ,32'h0c000029 ,32'h23de0002 ,32'hafdf0001 ,32'h8fdf0001 ,32'h23defffe ,32'h0c00000d ,32'h23de0002 ,32'hafdf0001 ,32'h20010003 };
+  //ファイルの入出力
+  integer fd=0;
+  integer readsize=0;
+  integer point_read=0;
+  initial begin
+  $display(FILE_PATH);  
+  fd = $fopen(FILE_PATH,"r");
+      if (fd!=0) begin
+          while (1) begin
+            readsize = $fread(mem_data,fd,point_read,10);
+            point_read+=readsize>>2;
+            if (readsize==0) break;
+          end  
+      end
+  $fclose(fd);
+  end
 
   int count =0;
   logic flg=0;
@@ -124,7 +137,7 @@ module core (
     .m_axis_result_tdata(fdiv_out)
   );
 
-  always @(posedge CLK2) begin
+  always @(posedge CLK) begin
     if (SW_W && status == INIT) begin 
       status <= RUN;
     end
@@ -181,9 +194,7 @@ module core (
 
     TMP_L1  <= mem_inst[1];   
     TMP_L2  <= reg_data[1]; 
-    //TMP_L1  <= inst;   
-    //TMP_L2  <= reg_data[1]; 
-    
+
        
   end
 
