@@ -34,7 +34,15 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   localparam OP_ANDI=  6'b001100;
   localparam OP_ORI =  6'b001101;
   localparam OP_SLTI=  6'b001010;
-  localparam OP_LUI=   6'b001111;
+  localparam OP_LUI =  6'b001111;
+ 
+  localparam OP_LW_S=  6'b110001;
+  localparam OP_SW_S=  6'b111001;
+
+  localparam OP_CEQ =  6'b110010;
+  localparam OP_CLT =  6'b111100;
+  localparam OP_CLE =  6'b111110;
+    
 
   localparam OP_FPU = 6'b010001;
     // inst[25:24]
@@ -45,6 +53,7 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
       localparam FPU_MUL  = 6'b000010;
       localparam FPU_DIV  = 6'b000011;
       localparam FPU_MOV  = 6'b000110;
+   localparam OP_FCON = 2'b01;
         
   logic [31:0] pc=32'b0;
   logic [1:0] status = 2'b0;
@@ -56,6 +65,7 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   logic [31:0] reg_data [31:0];
   logic [31:0] reg_data_const [31:0];
   logic [31:0] freg_data [31:0];
+  logic [7:0]  freg_cond;
   test test(reg_data_const);
   initial reg_data = reg_data_const;
 
@@ -164,22 +174,27 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
                 FPU_MUL : freg_data[inst[10:6]] <= fmul_out;
                 FPU_DIV : freg_data[inst[10:6]] <= fdiv_out; // !!!遅延あり？
                 FPU_MOV : freg_data[inst[10:6]] <= freg_data[inst[20:16]];
+                OP_CEQ :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] == freg_data[inst[15:11]]);
+                OP_CLT :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] <  freg_data[inst[15:11]]);
+                OP_CLE :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] <= freg_data[inst[15:11]]);
               endcase
           endcase
 
         OP_ADDI:reg_data[inst[20:16]]<=reg_data[inst[25:21]]+{{16{inst[15]}},inst[15:0]};
         OP_JAL: reg_data[31] <=pc+1;
         OP_LW:  reg_data[inst[20:16]]<=mem_data[reg_data[inst[25:21]]+inst[15:0]];//data_mem_
-        OP_SW:  mem_data[reg_data[inst[25:21]]+inst[15:0]]<=reg_data[inst[20:16]];//mem_data[inst[25:21]+inst[15:0]]
+        OP_SW:  mem_data[reg_data[inst[25:21]]+inst[15:0]]<=reg_data[inst[20:16]];//reg_data[inst[25:21]]+inst[15:0]
         OP_ANDI:reg_data[inst[20:16]]<=reg_data[inst[25:21]]&{16'b0,inst[15:0]};
         OP_ORI: reg_data[inst[20:16]]<=reg_data[inst[25:21]]|{16'b0,inst[15:0]};
-        OP_SLTI:reg_data[inst[20:16]]<=(reg_data[inst[25:21]]<= {{16{inst[15]}},inst[15:0]} );
+        OP_SLTI:reg_data[inst[20:16]]<= $signed(reg_data[inst[25:21]])<= $signed(inst[15:0]) ;
         OP_LUI: reg_data[inst[20:16]]<=inst[15:0]<<16;
+        OP_LW_S:freg_data[inst[20:16]]<=mem_data[reg_data[inst[25:21]]+inst[15:0]];//data_mem_
+        OP_SW_S:mem_data[reg_data[inst[25:21]]+inst[15:0]]<=freg_data[inst[20:16]];//reg_data[inst[25:21]]+inst[15:0]
       endcase       
-
       // PCの操作
       if ( (inst[31:26]==OP_BEQ &&(reg_data[inst[25:21]] == reg_data[inst[20:16]] ) )||
-           (inst[31:26]==OP_BNE &&(reg_data[inst[25:21]] != reg_data[inst[20:16]] ) ) )
+           (inst[31:26]==OP_BNE &&(reg_data[inst[25:21]] != reg_data[inst[20:16]] ) )||
+           (inst[31:26]==OP_FPU &&(inst[25:24]== OP_FCON ) && (freg_cond[inst[20:18]]==inst[16]) ) )
         pc <= pc+$signed(inst[15:0]);
       else if (inst[31:26]==OP_JAL) pc <= inst[25:0];
       else if ( (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JR)  ||
