@@ -1,5 +1,7 @@
-module core (
-  input logic CLK,
+module core #(
+parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbrot_data.bin"
+) 
+  (input logic CLK,
   input logic SW_W,
   input logic SW_E,
   output logic [7:0] LED
@@ -32,7 +34,15 @@ module core (
   localparam OP_ANDI=  6'b001100;
   localparam OP_ORI =  6'b001101;
   localparam OP_SLTI=  6'b001010;
-  localparam OP_LUI=   6'b001111;
+  localparam OP_LUI =  6'b001111;
+ 
+  localparam OP_LW_S=  6'b110001;
+  localparam OP_SW_S=  6'b111001;
+
+  localparam OP_CEQ =  6'b110010;
+  localparam OP_CLT =  6'b111100;
+  localparam OP_CLE =  6'b111110;
+
 
   localparam OP_FPU = 6'b010001;
     // inst[25:24]
@@ -43,6 +53,7 @@ module core (
       localparam FPU_MUL  = 6'b000010;
       localparam FPU_DIV  = 6'b000011;
       localparam FPU_MOV  = 6'b000110;
+   localparam OP_FCON = 2'b01;
         
   logic [31:0] pc=32'b0;
   logic [1:0] status = 2'b0;
@@ -50,27 +61,47 @@ module core (
   localparam RUN  = 2'b01;
 
   // レジスタ
+  //%r30がスタックポインタ0x0 %r31がフレームポインタ0x40000
   logic [31:0] reg_data [31:0];
   logic [31:0] freg_data [31:0];
-  //%r30がスタックポインタ0x0 %r31がフレームポインタ0x40000
-  integer i;
+  logic [7:0]  freg_cond;
   initial begin
-    for(i=1;i<30;i=i+1)
-      reg_data[i]=32'b0;
-    reg_data[0]=32'b0;
-    reg_data[30]=32'b0;
-    reg_data[31]=32'h00000040;
-  end
+    reg_data [31:30]={32'h00000040,32'h0};
+    reg_data[0]=32'h0;
+  end;
 
   // 命令メモリ
-  logic [31:0] mem_inst [43:0];
-  fib3 fib3(mem_inst);
+  logic [31:0] mem_inst [199:0];
+   //fib3 fib3(mem_inst);
+   //fib fib(mem_inst);   
+   mandelbrot mandelbrot(mem_inst);
+   //minrt minrt(mem_inst);
+
   // 現在の命令
   logic[31:0] inst;
   assign inst = mem_inst[pc];
 
   // データメモリ
-  logic [31:0] mem_data [499:0];
+  parameter MAX_MEM =200;
+  logic [31:0] mem_data [MAX_MEM-1:0];
+  //fib,fib3は44命令 mandelbrotは125命令 minrtは9366命令
+
+  //ファイルの入出力
+  integer fd=0;
+  integer readsize=0;
+  integer point_read=0;
+  initial begin
+  $display(FILE_PATH);  
+  fd = $fopen(FILE_PATH,"r");
+      if (fd!=0) begin
+          while (1) begin
+            readsize = $fread(mem_data,fd,point_read,10);
+            point_read+=readsize>>2;
+            if (readsize==0) break;
+          end  
+      end
+  $fclose(fd);
+  end
 
   int count =0;
   logic flg=0;
@@ -80,7 +111,7 @@ module core (
 
   // 遅いクロックの生成
   always @(posedge CLK ) begin
-    if (count >= 200000000) begin
+    if (count >= 80000000) begin
       count <= 0;
       CLK2<=~CLK2;
     end else   count <= count+1;
@@ -144,22 +175,28 @@ module core (
                 FPU_MUL : freg_data[inst[10:6]] <= fmul_out;
                 FPU_DIV : freg_data[inst[10:6]] <= fdiv_out; // !!!遅延あり？
                 FPU_MOV : freg_data[inst[10:6]] <= freg_data[inst[20:16]];
+                OP_CEQ :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] == freg_data[inst[15:11]]);
+                OP_CLT :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] <  freg_data[inst[15:11]]);
+                OP_CLE :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] <= freg_data[inst[15:11]]);
               endcase
           endcase
 
         OP_ADDI:reg_data[inst[20:16]]<=reg_data[inst[25:21]]+{{16{inst[15]}},inst[15:0]};
         OP_JAL: reg_data[31] <=pc+1;
         OP_LW:  reg_data[inst[20:16]]<=mem_data[reg_data[inst[25:21]]+inst[15:0]];//data_mem_
-        OP_SW:  mem_data[reg_data[inst[25:21]]+inst[15:0]]<=reg_data[inst[20:16]];//mem_data[inst[25:21]+inst[15:0]]
+        OP_SW:  mem_data[reg_data[inst[25:21]]+inst[15:0]]<=reg_data[inst[20:16]];//reg_data[inst[25:21]]+inst[15:0]
         OP_ANDI:reg_data[inst[20:16]]<=reg_data[inst[25:21]]&{16'b0,inst[15:0]};
         OP_ORI: reg_data[inst[20:16]]<=reg_data[inst[25:21]]|{16'b0,inst[15:0]};
-        OP_SLTI:reg_data[inst[20:16]]<=(reg_data[inst[25:21]]<= {{16{inst[15]}},inst[15:0]} );
+        OP_SLTI:reg_data[inst[20:16]]<= $signed(reg_data[inst[25:21]])<= $signed(inst[15:0]) ;
         OP_LUI: reg_data[inst[20:16]]<=inst[15:0]<<16;
+        OP_LW_S:freg_data[inst[20:16]]<=mem_data[reg_data[inst[25:21]]+inst[15:0]];//data_mem_
+        OP_SW_S:mem_data[reg_data[inst[25:21]]+inst[15:0]]<=freg_data[inst[20:16]];//reg_data[inst[25:21]]+inst[15:0]
       endcase       
 
       // PCの操作
       if ( (inst[31:26]==OP_BEQ &&(reg_data[inst[25:21]] == reg_data[inst[20:16]] ) )||
-           (inst[31:26]==OP_BNE &&(reg_data[inst[25:21]] != reg_data[inst[20:16]] ) ) )
+           (inst[31:26]==OP_BNE &&(reg_data[inst[25:21]] != reg_data[inst[20:16]] ) )||
+           (inst[31:26]==OP_FPU &&(inst[25:24]== OP_FCON ) && (freg_cond[inst[20:18]]==inst[16]) ) )
         pc <= pc+$signed(inst[15:0]);
       else if (inst[31:26]==OP_JAL) pc <= inst[25:0];
       else if ( (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JR)  ||
@@ -173,7 +210,7 @@ module core (
     end
 
     TMP_L1  <= mem_inst[1];   
-    TMP_L2  <= reg_data[1];   
+    TMP_L2  <= reg_data[1]; 
   end
 
   assign LED[7]  =CLK2;
