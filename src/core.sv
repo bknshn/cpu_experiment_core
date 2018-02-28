@@ -42,7 +42,7 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   localparam OP_CEQ =  6'b110010;
   localparam OP_CLT =  6'b111100;
   localparam OP_CLE =  6'b111110;
-    
+
 
   localparam OP_FPU = 6'b010001;
     // inst[25:24]
@@ -75,7 +75,7 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
    //fib3 fib3(mem_inst);
    //fib fib(mem_inst);   
    mandelbrot mandelbrot(mem_inst);
-  //minrt minrt(mem_inst);
+   //minrt minrt(mem_inst);
 
   // 現在の命令
   logic[31:0] inst;
@@ -192,6 +192,7 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
         OP_LW_S:freg_data[inst[20:16]]<=mem_data[reg_data[inst[25:21]]+inst[15:0]];//data_mem_
         OP_SW_S:mem_data[reg_data[inst[25:21]]+inst[15:0]]<=freg_data[inst[20:16]];//reg_data[inst[25:21]]+inst[15:0]
       endcase       
+
       // PCの操作
       if ( (inst[31:26]==OP_BEQ &&(reg_data[inst[25:21]] == reg_data[inst[20:16]] ) )||
            (inst[31:26]==OP_BNE &&(reg_data[inst[25:21]] != reg_data[inst[20:16]] ) )||
@@ -210,8 +211,6 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
 
     TMP_L1  <= mem_inst[1];   
     TMP_L2  <= reg_data[1]; 
-
-       
   end
 
   assign LED[7]  =CLK2;
