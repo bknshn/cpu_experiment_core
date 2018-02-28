@@ -39,21 +39,21 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   localparam OP_LW_S=  6'b110001;
   localparam OP_SW_S=  6'b111001;
 
-  localparam OP_CEQ =  6'b110010;
-  localparam OP_CLT =  6'b111100;
-  localparam OP_CLE =  6'b111110;
-
-
   localparam OP_FPU = 6'b010001;
     // inst[25:24]
     localparam FPU_OP_SPECIAL = 2'b10;
+    localparam OP_FCON = 2'b01;
       // inst[5:0]
       localparam FPU_ADD  = 6'b000000;
       localparam FPU_SUB  = 6'b000001;
       localparam FPU_MUL  = 6'b000010;
       localparam FPU_DIV  = 6'b000011;
       localparam FPU_MOV  = 6'b000110;
-   localparam OP_FCON = 2'b01;
+      localparam FPU_CMP_EQ = 6'b110010;
+      localparam FPU_CMP_LT = 6'b111100;
+      localparam FPU_CMP_LE = 6'b111110;
+
+  localparam OP_I_TO_F = 6'b110000;
         
   logic [31:0] pc=32'b0;
   logic [1:0] status = 2'b0;
@@ -72,10 +72,10 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
 
   // 命令メモリ
   logic [31:0] mem_inst [199:0];
-   //fib3 fib3(mem_inst);
-   //fib fib(mem_inst);   
-   mandelbrot mandelbrot(mem_inst);
-   //minrt minrt(mem_inst);
+  //fib3 fib3(mem_inst);
+  //fib fib(mem_inst);   
+  mandelbrot mandelbrot(mem_inst);
+  //minrt minrt(mem_inst);
 
   // 現在の命令
   logic[31:0] inst;
@@ -93,13 +93,13 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   initial begin
   $display(FILE_PATH);  
   fd = $fopen(FILE_PATH,"r");
-      if (fd!=0) begin
-          while (1) begin
-            readsize = $fread(mem_data,fd,point_read,10);
-            point_read+=readsize>>2;
-            if (readsize==0) break;
-          end  
-      end
+    if (fd!=0) begin
+      while (1) begin
+        readsize = $fread(mem_data,fd,point_read,10);
+        point_read+=readsize>>2;
+        if (readsize==0) break;
+      end  
+    end
   $fclose(fd);
   end
 
@@ -147,6 +147,28 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
     .m_axis_result_tvalid(fdiv_valid),
     .m_axis_result_tdata(fdiv_out)
   );
+  logic[6:0] fcmp_op;
+  assign fcmp_op =
+    (inst[5:0]==FPU_CMP_EQ) ? 6'b010100 :
+    (inst[5:0]==FPU_CMP_LT) ? 6'b001100 :
+    (inst[5:0]==FPU_CMP_LE) ? 6'b011100 :
+    6'b000000;
+  logic fcmp_out;
+  fcmp fcmp(
+    .s_axis_a_tvalid(1'b1),
+    .s_axis_a_tdata(freg_data[inst[15:11]]),
+    .s_axis_b_tvalid(1'b1),
+    .s_axis_b_tdata(freg_data[inst[20:16]]),
+    .s_axis_operation_tvalid(1'b1),
+    .s_axis_operation_tdata(fcmp_op),
+    .m_axis_result_tdata(fcmp_out)
+  );
+  logic[31:0] itof_out;
+  itof itof(
+    .s_axis_a_tvalid(1'b1),
+    .s_axis_a_tdata(reg_data[inst[25:21]]),
+    .m_axis_result_tdata(itof_out)
+  );
 
   always @(posedge CLK) begin
     if (SW_W && status == INIT) begin 
@@ -173,13 +195,14 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
                 FPU_ADD : freg_data[inst[10:6]] <= fadd_fsub_out;
                 FPU_SUB : freg_data[inst[10:6]] <= fadd_fsub_out;
                 FPU_MUL : freg_data[inst[10:6]] <= fmul_out;
-                FPU_DIV : freg_data[inst[10:6]] <= fdiv_out; // !!!遅延あり？
+                FPU_DIV : freg_data[inst[10:6]] <= fdiv_out;
                 FPU_MOV : freg_data[inst[10:6]] <= freg_data[inst[20:16]];
-                OP_CEQ :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] == freg_data[inst[15:11]]);
-                OP_CLT :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] <  freg_data[inst[15:11]]);
-                OP_CLE :  freg_cond[inst[10:8]] <=( freg_data[inst[20:16]] <= freg_data[inst[15:11]]);
+                FPU_CMP_EQ : freg_cond[inst[10:8]] <= fcmp_out;
+                FPU_CMP_LT : freg_cond[inst[10:8]] <= fcmp_out;
+                FPU_CMP_LE : freg_cond[inst[10:8]] <= fcmp_out;
               endcase
           endcase
+        OP_I_TO_F: freg_data[inst[20:16]] <= itof_out;
 
         OP_ADDI:reg_data[inst[20:16]]<=reg_data[inst[25:21]]+{{16{inst[15]}},inst[15:0]};
         OP_JAL: reg_data[31] <=pc+1;
