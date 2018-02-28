@@ -63,11 +63,12 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   // レジスタ
   //%r30がスタックポインタ0x0 %r31がフレームポインタ0x40000
   logic [31:0] reg_data [31:0];
-  logic [31:0] reg_data_const [31:0];
   logic [31:0] freg_data [31:0];
   logic [7:0]  freg_cond;
-  test test(reg_data_const);
-  initial reg_data = reg_data_const;
+  initial begin
+    reg_data [31:30]={32'h00000040,32'h0};
+    reg_data[0]=32'h0;
+  end;
 
   // 命令メモリ
   logic [31:0] mem_inst [199:0];
