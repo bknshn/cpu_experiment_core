@@ -74,8 +74,8 @@ parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib
   // 命令メモリ
   logic [31:0] mem_inst [199:0];
   //fib3 fib3(mem_inst);
-  fib fib(mem_inst);   
- // mandelbrot mandelbrot(mem_inst);
+  //fib fib(mem_inst);
+  mandelbrot mandelbrot(mem_inst);
   //minrt minrt(mem_inst);
 
   // 現在の命令
@@ -173,6 +173,94 @@ parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib
     .m_axis_result_tdata(itof_out)
   );
 
+  // out命令用
+  logic sender_state = 1'b0; // awvalid, wvalidを立てるまで0, 立ててから次の命令に行くまで1
+  logic awvalid = 1'b0;
+  logic awready;
+  logic wvalid = 1'b0;
+  logic wready;
+  logic bvalid;
+  logic bready = 1'b1;
+  logic bresp = 2'b01;
+  always @(posedge CLK) begin
+    if (inst[31:26]==OP_OUT && !sender_state) begin
+      awvalid <= 1'b1;
+      wvalid <= 1'b1;
+      sender_state = 1'b1;
+    end
+    if (awvalid && awready) begin
+      awvalid <= 1'b0;
+    end
+    if (wvalid && wready) begin
+      wvalid <= 1'b0;
+    end
+    if (!bready) begin
+      bready <= 1'b1;
+    end
+    if (bvalid && bready) begin
+      bready <= 1'b0;
+    end
+    if (bresp==2'b10) begin
+      awvalid <= 1'b1;
+      wvalid <= 1'b1;
+    end
+  end
+
+  // in命令用
+  logic receiver_state = 1'b0; // arvalid, rreadyを立てるまで0, 立ててから次の命令に行くまで1
+  logic arvalid = 1'b0;
+  logic arready;
+  logic rvalid;
+  logic rready = 1'b0;
+  logic[7:0] rdata;
+  always @(posedge CLK) begin
+    if (inst[31:26]==OP_IN && !receiver_state) begin
+      arvalid <= 1'b1;
+      rready <= 1'b1;
+      receiver_state <= 1'b1;
+    end
+    if (arvalid && arready) begin
+      arvalid <= 1'b0;
+    end
+    if (rvalid && rready) begin
+      rready <= 1'b0;
+      reg_data[inst[20:16]][7:0] <= rdata;
+    end
+    if (rresp==2'b10) begin
+      arvalid <= 1'b1;
+      rready <= 1'b1;
+    end
+  end
+
+  axi_uartlite_0 axi_uartlite_0 (
+    // sender
+    .s_axi_aclk(CLK),        // input wire s_axi_aclk
+    .s_axi_aresetn(1'b1),  // input wire s_axi_aresetn
+    // .interrupt(interrupt),          // output wire interrupt
+    .s_axi_awaddr(4'h4),    // input wire [3 : 0] s_axi_awaddr */
+    .s_axi_awvalid(awvalid),  // input wire s_axi_awvalid
+    .s_axi_awready(awready),  // output wire s_axi_awready
+    .s_axi_wdata(reg_data[inst[20:16]][7:0]),      // input wire [31 : 0] s_axi_wdata
+    .s_axi_wstrb(4'b0001),      // input wire [3 : 0] s_axi_wstrb
+    .s_axi_wvalid(wvalid),    // input wire s_axi_wvalid
+    .s_axi_wready(wready),    // output wire s_axi_wready
+    .s_axi_bresp(bresp),      // output wire [1 : 0] s_axi_bresp (fail:10, succeed: 00)
+    .s_axi_bvalid(bvalid),    // output wire s_axi_bvalid
+    .s_axi_bready(bready),    // input wire s_axi_bready
+
+    // receiver
+    .s_axi_araddr(4'h0),    // input wire [3 : 0] s_axi_araddr */
+    .s_axi_arvalid(arvalid),  // input wire s_axi_arvalid */
+    .s_axi_arready(arready),  // output wire s_axi_arready */
+    .s_axi_rdata(rdata),      // output wire [31 : 0] s_axi_rdata */
+    .s_axi_rresp(rresp),      // output wire [1 : 0] s_axi_rresp (fail:10, succeed: 00) */
+    .s_axi_rvalid(rvalid),    // output wire s_axi_rvalid */
+    .s_axi_rready(rready),    // input wire s_axi_rready */
+
+    .rx(UART_RX),                        // input wire rx
+    .tx(UART_TX)                        // output wire tx
+  );
+
   always @(posedge CLK) begin
     if (inst_end==1) begin
        wd = $fopen(FILE_WRITE_PATH,"w+");
@@ -242,7 +330,18 @@ parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib
       else begin // PCを1増やす系
         if (inst[31:26]==OP_FPU && inst[5:0]==FPU_DIV) begin
           if (fdiv_valid) pc <= pc+1;
-        end else pc <=pc+1;
+        end else if (inst[31:26]==OP_OUT) begin
+          if (bresp==2'b00) begin
+            pc<= pc+1;
+            sender_state <= 1'b0;
+          end
+        end else if (inst[31:26]==OP_IN) begin
+          if (rresp==2'b00) begin
+            pc<= pc+1;
+            receiver_state <= 1'b0;
+          end
+        end else
+          pc <=pc+1;
       end
     end
 
