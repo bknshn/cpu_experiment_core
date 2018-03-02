@@ -1,5 +1,6 @@
 module core #(
-parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbrot_data.bin"
+parameter FILE_READ_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib_data.bin",
+parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib_result.txt"
 ) 
   (input logic CLK,
   input logic SW_W,
@@ -73,8 +74,8 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   // 命令メモリ
   logic [31:0] mem_inst [199:0];
   //fib3 fib3(mem_inst);
-  //fib fib(mem_inst);   
-  mandelbrot mandelbrot(mem_inst);
+  fib fib(mem_inst);   
+ // mandelbrot mandelbrot(mem_inst);
   //minrt minrt(mem_inst);
 
   // 現在の命令
@@ -88,11 +89,13 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
 
   //ファイルの入出力
   integer fd=0;
+  integer wd=0;
   integer readsize=0;
   integer point_read=0;
-  initial begin
-  $display(FILE_PATH);  
-  fd = $fopen(FILE_PATH,"r");
+  integer write_count=1;
+  integer inst_end=0;
+  initial begin 
+  fd = $fopen(FILE_READ_PATH,"r");
     if (fd!=0) begin
       while (1) begin
         readsize = $fread(mem_data,fd,point_read,10);
@@ -171,7 +174,18 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
   );
 
   always @(posedge CLK) begin
-    if (SW_W && status == INIT) begin 
+    if (inst_end==1) begin
+       wd = $fopen(FILE_WRITE_PATH,"w+");
+       inst_end=2;
+    end
+    else if (inst_end==2 &&write_count<50) begin
+        $fwrite(wd, "%d\n",mem_data[write_count]);
+        write_count=write_count+1;
+    end
+    else if (inst_end==2 && write_count>=50) begin
+        $fclose(wd);    
+    end
+    else if (SW_W && status == INIT) begin 
       status <= RUN;
     end
     else if (status == RUN) begin
@@ -224,7 +238,7 @@ parameter FILE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/mandelbro
       else if (inst[31:26]==OP_JAL) pc <= inst[25:0];
       else if ( (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JR)  ||
                 (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JALR) ) pc<=reg_data[inst[25:21]];
-      else if (inst[31:26]==OP_J   ) begin pc<=inst[25:0];status<=INIT; end
+      else if (inst[31:26]==OP_J   ) begin pc<=inst[25:0];inst_end=1;status<=INIT; end
       else begin // PCを1増やす系
         if (inst[31:26]==OP_FPU && inst[5:0]==FPU_DIV) begin
           if (fdiv_valid) pc <= pc+1;
