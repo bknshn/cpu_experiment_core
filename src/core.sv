@@ -53,8 +53,12 @@ parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib
       localparam FPU_CMP_EQ = 6'b110010;
       localparam FPU_CMP_LT = 6'b111100;
       localparam FPU_CMP_LE = 6'b111110;
+      localparam FPU_NEG  = 6'b000111;
+      localparam FPU_ABS  = 6'b000101;
+      localparam FPU_SQRT = 6'b000100;
 
   localparam OP_I_TO_F = 6'b110000;
+  localparam OP_F_TO_I = 6'b111000;
         
   logic [31:0] pc=32'b0;
   logic [1:0] status = 2'b0;
@@ -171,6 +175,19 @@ parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib
     .s_axis_a_tvalid(1'b1),
     .s_axis_a_tdata(reg_data[inst[25:21]]),
     .m_axis_result_tdata(itof_out)
+  );
+  logic[31:0] ftoi_out;
+  ftoi ftoi(
+    .s_axis_a_tvalid(1'b1),
+    .s_axis_a_tdata(reg_data[inst[25:21]]),
+    .m_axis_result_tdata(ftoi_out)
+  );
+  logic[31:0] fsqrt_out;
+  fsqrt fsqrt(
+    .aclk(CLK),
+    .s_axis_a_tvalid(1'b1),
+    .s_axis_a_tdata(freg_data[inst[20:16]]),
+    .m_axis_result_tdata(fsqrt_out)
   );
 
   // out命令用
@@ -302,9 +319,13 @@ parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib
                 FPU_CMP_EQ : freg_cond[inst[10:8]] <= fcmp_out;
                 FPU_CMP_LT : freg_cond[inst[10:8]] <= fcmp_out;
                 FPU_CMP_LE : freg_cond[inst[10:8]] <= fcmp_out;
+                FPU_NEG : freg_data[inst[10:6]] <= freg_data[inst[20:16]] ^ 32'h80000000;
+                FPU_ABS : freg_data[inst[10:6]] <= freg_data[inst[20:16]] & 32'h7fffffff;
+                FPU_SQRT : freg_data[inst[10:6]] <= fsqrt_out;
               endcase
           endcase
         OP_I_TO_F: freg_data[inst[20:16]] <= itof_out;
+        OP_F_TO_I: freg_data[inst[20:16]] <= ftoi_out;
 
         OP_ADDI:reg_data[inst[20:16]]<=reg_data[inst[25:21]]+{{16{inst[15]}},inst[15:0]};
         OP_JAL: reg_data[31] <=pc+1;
@@ -328,7 +349,7 @@ parameter FILE_WRITE_PATH = "/home/tansei/is/cpu/cpu_experiment_core/src/bin/fib
                 (inst[31:26]==OP_ZERO && inst[5:0]== FUN_JALR) ) pc<=reg_data[inst[25:21]];
       else if (inst[31:26]==OP_J   ) begin pc<=inst[25:0];inst_end=1;status<=INIT; end
       else begin // PCを1増やす系
-        if (inst[31:26]==OP_FPU && inst[5:0]==FPU_DIV) begin
+        if (inst[31:26]==OP_FPU && (inst[5:0]==FPU_DIV || inst[5:0]==FPU_SQRT)) begin
           if (fdiv_valid) pc <= pc+1;
         end else if (inst[31:26]==OP_OUT) begin
           if (bresp==2'b00) begin
